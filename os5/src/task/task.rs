@@ -2,7 +2,7 @@
 
 use super::TaskContext;
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT};
+use crate::config::{BIG_STRIDE, MAX_SYSCALL_NUM, PRIORITY, TRAP_CONTEXT};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -48,6 +48,9 @@ pub struct TaskControlBlockInner {
     pub exit_code: i32,
 
     pub addtion_info: TaskControlBlockAddtionInfo,
+
+    // prio
+    pub priority: Priority,
 }
 
 pub struct TaskControlBlockAddtionInfo {
@@ -124,6 +127,7 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     addtion_info: TaskControlBlockAddtionInfo::new(),
+                    priority: Priority::new(),
                 })
             },
         };
@@ -192,6 +196,7 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     addtion_info: TaskControlBlockAddtionInfo::new(),
+                    priority: Priority::new(),
                 })
             },
         });
@@ -241,6 +246,7 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     addtion_info: TaskControlBlockAddtionInfo::new(),
+                    priority: Priority::new(),
                 })
             },
         });
@@ -269,4 +275,73 @@ pub enum TaskStatus {
     Ready,
     Running,
     Zombie,
+}
+
+#[derive(Debug)]
+pub struct Priority {
+    stride: u64,
+    pass: u64,
+}
+
+impl Priority {
+    fn new() -> Priority {
+        let pass = BIG_STRIDE / PRIORITY as u64;
+
+        Priority {
+            stride: 0,
+            pass: pass,
+        }
+    }
+
+    pub fn set_prio(&mut self, prio: usize) {
+        self.pass = BIG_STRIDE / prio as u64;
+    }
+
+    pub fn update(&mut self) {
+        self.stride += self.pass;
+    }
+}
+
+impl PartialEq for Priority {
+    fn eq(&self, other: &Self) -> bool {
+        self.stride == other.stride
+    }
+}
+
+impl Eq for Priority {}
+
+impl PartialOrd for Priority {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        other.stride.partial_cmp(&self.stride)
+    }
+}
+
+impl Ord for Priority {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        other.stride.cmp(&self.stride)
+    }
+}
+
+impl PartialEq for TaskControlBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner_exclusive_access().priority == other.inner_exclusive_access().priority
+    }
+}
+
+impl Eq for TaskControlBlock {}
+
+impl PartialOrd for TaskControlBlock {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.inner_exclusive_access()
+            .priority
+            .partial_cmp(&other.inner_exclusive_access().priority)
+    }
+}
+
+impl Ord for TaskControlBlock {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.inner_exclusive_access()
+            .priority
+            .cmp(&other.inner_exclusive_access().priority)
+    }
 }

@@ -56,10 +56,13 @@ pub fn run_tasks() {
             // access coming task TCB exclusively
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
-            task_inner.task_status = TaskStatus::Running;
+
             if task_inner.addtion_info.time == 0 {
                 task_inner.addtion_info.time = get_time_us();
             }
+
+            task_inner.task_status = TaskStatus::Running;
+
             drop(task_inner);
             // release coming task TCB manually
             processor.current = Some(task);
